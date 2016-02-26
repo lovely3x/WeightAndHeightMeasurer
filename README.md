@@ -1,2 +1,4 @@
 # WeightAndHeightMeasurer
-一个身高体重滑动选择器
+一个简单的身高体重滑动选择器
+
+
