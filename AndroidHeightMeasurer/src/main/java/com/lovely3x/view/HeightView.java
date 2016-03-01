@@ -671,10 +671,21 @@ public class HeightView extends View {
         return mCurrentLine;
     }
 
-    public void setCurrentLine(int mCurrentLine) {
-        this.mCurrentLine = mCurrentLine;
-        invalidate();
+    public void setCurrentLine(int currentLine) {
+        int distance = currentLine * space;
+        if (mOverScroller != null && !mOverScroller.isFinished()) mOverScroller.abortAnimation();
+        switch (mOrientation) {
+            case HORIZONTAL:
+                int startX = (getWidth() >> 1) - getPaddingLeft();
+                scrollTo(distance - startX, getScrollY());
+                break;
+            case VERTICAL:
+                int startY = ((getHeight() >> 1) - getPaddingBottom());
+                scrollTo(getScrollX(), -distance + startY);
+                break;
+        }
         adjustMarker(true);
+        postInvalidate();
     }
 
     public int getSpace() {
