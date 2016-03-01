@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -213,9 +214,9 @@ public class HeightView extends View {
             mMarkerSpace = attributes.getDimensionPixelOffset(R.styleable.HeightView_markerSpace, mMarkerSpace);
 
             mLines = attributes.getInt(R.styleable.HeightView_lines, mLines);
-            mStartLine = attributes.getInt(R.styleable.HeightView_startLine,mStartLine);
+            mStartLine = attributes.getInt(R.styleable.HeightView_startLine, mStartLine);
 
-            mMarkerWidth = attributes.getDimensionPixelOffset(R.styleable.HeightView_markerSize,mMarkerWidth);
+            mMarkerWidth = attributes.getDimensionPixelOffset(R.styleable.HeightView_markerSize, mMarkerWidth);
 
             attributes.recycle();
         }
@@ -294,7 +295,7 @@ public class HeightView extends View {
                     case HORIZONTAL: {
                         //往左滚动
                         if (distanceX > 0) {
-                            int maxX = (mLines - mStartLine) * space - (getWidth() >> 1) + getPaddingLeft();
+                            int maxX = (mLines /*+ mStartLine*/) * space - (getWidth() >> 1) + getPaddingLeft();
                             if (getScrollX() + distanceX > maxX) {
                                 scrollTo(maxX, 0);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
@@ -304,11 +305,11 @@ public class HeightView extends View {
                             }
                             //往右滚动
                         } else if (distanceX < 0) {
-                            int minX = -((getWidth() >> 1) - getPaddingLeft());
-                            if (getScrollX() - distanceX < minX) {
+                            int minX = -((getWidth() >> 1) - getPaddingLeft())  + mStartLine * space;
+                            if (getScrollX() + distanceX < minX) {
                                 scrollTo(minX, 0);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
-                            } else if (getScrollX() - distanceX >= minX) {
+                            } else if (getScrollX() + distanceX >= minX) {
                                 scrollBy((int) distanceX, 0);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
                             }
@@ -324,14 +325,14 @@ public class HeightView extends View {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
                 switch (mOrientation) {
                     case VERTICAL: {
-                        int minDistance = ((mLines) * space - (getHeight() >> 1)) + getPaddingBottom();
+                        int minDistance = ((mLines) * space - (getHeight() >> 1)) + getPaddingBottom() ;
                         int maxDistance = (getHeight() >> 1) - getPaddingBottom() - mStartLine * space;
                         mOverScroller.fling(0, getScrollY(), 0, (int) (-velocityY / ratio), 0, 0, -minDistance, maxDistance, 0, 100);
                     }
                     break;
                     case HORIZONTAL: {
-                        int minX = -((getWidth() >> 1) - getPaddingLeft());
-                        int maxX = (mLines - mStartLine) * space - (getWidth() >> 1) + getPaddingLeft();
+                        int minX = -((getWidth() >> 1) - getPaddingLeft() - mStartLine * space);
+                        int maxX = (mLines /*+ mStartLine*/) * space - (getWidth() >> 1) + getPaddingLeft();
                         mOverScroller.fling(getScrollX(), 0, (int) (-velocityX / ratio), 0, minX, maxX, 0, 0, 100, 0);
                     }
                     break;
@@ -416,6 +417,7 @@ public class HeightView extends View {
         mGestureDetector.onTouchEvent(event);
         return true;
     }
+
 
     /**
      * 调整目前选择中的条目
