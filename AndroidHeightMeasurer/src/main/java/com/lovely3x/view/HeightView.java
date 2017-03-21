@@ -8,7 +8,6 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -32,11 +31,14 @@ public class HeightView extends View {
      * 垂直方向
      */
     public static final int VERTICAL = 2;
+
     public static final int ZERO = 0;
+
     /**
      * 默认的阻尼系数
      */
     public static final float DEFAULT_RATIO = 2.0f;
+
     private static final String TAG = "HeightView";
     /**
      * 阻尼系数，在fling下的阻力，阻力越大就飞的就约慢
@@ -58,11 +60,9 @@ public class HeightView extends View {
      * 步进值是 5 那么就是  0,5,10,15,20
      * 步进值是 10 那么就是 0,10,20,30,40
      */
-    private int mSetupValue = 10;
-    /**
-     * 当前选中的行
-     */
-    private int mCurrentLine;
+    private int mSetupValue = 5;
+
+
     /**
      * 每个格子的间距
      */
@@ -126,10 +126,12 @@ public class HeightView extends View {
      * 线条的颜色
      */
     private int mLineColor;
+
     /**
      * 上一次是否是fling模式
      */
     private boolean mPreviousIsFling = false;
+
     /**
      * 开始行
      * 如果开始行为 0，步进值为10
@@ -137,7 +139,13 @@ public class HeightView extends View {
      * 如果开始行为 10，步进值为10
      * 则 100,110,120,130
      */
-    private int mStartLine = 0;
+    private int mStartLineValue = 0;
+
+    /**
+     * 用于记录当前的marker的位置
+     */
+    private int mCurrentLineIndex;
+
     /**
      * 保存线位置的数组
      */
@@ -214,7 +222,7 @@ public class HeightView extends View {
             mMarkerSpace = attributes.getDimensionPixelOffset(R.styleable.HeightView_markerSpace, mMarkerSpace);
 
             mLines = attributes.getInt(R.styleable.HeightView_lines, mLines);
-            mStartLine = attributes.getInt(R.styleable.HeightView_startLine, mStartLine);
+            mStartLineValue = attributes.getInt(R.styleable.HeightView_startLineValue, mStartLineValue);
 
             mMarkerWidth = attributes.getDimensionPixelOffset(R.styleable.HeightView_markerSize, mMarkerWidth);
 
@@ -231,13 +239,14 @@ public class HeightView extends View {
 
         space = (int) (getResources().getDisplayMetrics().density * 7);
         mHighLightColor = Color.parseColor("#1e7d9e");
+
         mTextColor = mMarkerColor = Color.WHITE;
+
         mTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12, getResources().getDisplayMetrics());
         mShortLineLength = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
         mLongLineLength = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
         mHighlightWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1.5f, getResources().getDisplayMetrics());
         mLineWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, getResources().getDisplayMetrics());
-
 
         mMarkerPath = new Path();
 
@@ -272,16 +281,17 @@ public class HeightView extends View {
                         //往上滚动
                         if (distanceY > 0) {
                             //最大滚动到Marker位置
-                            if (getScrollY() + distanceY > (getHeight() >> 1) - getPaddingBottom() - mStartLine * space) {
-                                scrollTo(0, (getHeight() >> 1) - getPaddingBottom() - mStartLine * space);
+                            int distance = (getHeight() >> 1) - getPaddingBottom()/* - (mStartLineValue) * space*/;
+                            if (getScrollY() + distanceY > distance) {
+                                scrollTo(0, distance);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
-                            } else if (getScrollY() + distanceY < (getHeight() >> 1) - getPaddingBottom() - mStartLine * space) {
+                            } else if (getScrollY() + distanceY < distance) {
                                 scrollBy(0, (int) distanceY);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
                             }
                             //往下滚动
                         } else if (distanceY < 0) {
-                            int minDistance = ((mLines/* - mStartLine*/) * space - (getHeight() >> 1)) + getPaddingBottom()/* + mStartLine * space*/;
+                            int minDistance = (mLines * space - (getHeight() >> 1)) + getPaddingBottom();
                             if (getScrollY() < -minDistance) {
                                 scrollTo(0, -minDistance);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
@@ -295,7 +305,7 @@ public class HeightView extends View {
                     case HORIZONTAL: {
                         //往左滚动
                         if (distanceX > 0) {
-                            int maxX = (mLines /*+ mStartLine*/) * space - (getWidth() >> 1) + getPaddingLeft();
+                            int maxX = (mLines /*+ mStartLineValue*/) * space - (getWidth() >> 1) + getPaddingLeft();
                             if (getScrollX() + distanceX > maxX) {
                                 scrollTo(maxX, 0);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
@@ -305,7 +315,7 @@ public class HeightView extends View {
                             }
                             //往右滚动
                         } else if (distanceX < 0) {
-                            int minX = -((getWidth() >> 1) - getPaddingLeft())  + mStartLine * space;
+                            int minX = -((getWidth() >> 1) - getPaddingLeft());
                             if (getScrollX() + distanceX < minX) {
                                 scrollTo(minX, 0);
                                 ViewCompat.postInvalidateOnAnimation(HeightView.this);
@@ -325,14 +335,14 @@ public class HeightView extends View {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
                 switch (mOrientation) {
                     case VERTICAL: {
-                        int minDistance = ((mLines) * space - (getHeight() >> 1)) + getPaddingBottom() ;
-                        int maxDistance = (getHeight() >> 1) - getPaddingBottom() - mStartLine * space;
+                        int minDistance = ((mLines) * space - (getHeight() >> 1)) + getPaddingBottom();
+                        int maxDistance = (getHeight() >> 1) - getPaddingBottom();
                         mOverScroller.fling(0, getScrollY(), 0, (int) (-velocityY / ratio), 0, 0, -minDistance, maxDistance, 0, 100);
                     }
                     break;
                     case HORIZONTAL: {
-                        int minX = -((getWidth() >> 1) - getPaddingLeft() - mStartLine * space);
-                        int maxX = (mLines /*+ mStartLine*/) * space - (getWidth() >> 1) + getPaddingLeft();
+                        int minX = -((getWidth() >> 1) - getPaddingLeft());
+                        int maxX = (mLines /*+ mStartLineValue*/) * space - (getWidth() >> 1) + getPaddingLeft();
                         mOverScroller.fling(getScrollX(), 0, (int) (-velocityX / ratio), 0, minX, maxX, 0, 0, 100, 0);
                     }
                     break;
@@ -376,7 +386,7 @@ public class HeightView extends View {
     }
 
     /**
-     * 测量空间所需高度
+     * 测量控件所需高度
      */
     public int measureHeight(int heightMeasureSpec) {
         switch (MeasureSpec.getMode(heightMeasureSpec)) {
@@ -423,23 +433,23 @@ public class HeightView extends View {
      * 调整目前选择中的条目
      */
     public void adjustMarker(boolean adjustPosition) {
-
-        final int previous = mCurrentLine;
+        final int previous = mCurrentLineIndex;
 
         switch (mOrientation) {
             case VERTICAL: {
                 int startY = (getHeight() >> 1) - getPaddingBottom();
                 int scrollY = getScrollY();
                 int progress = scrollY - startY;
-                mCurrentLine = -progress / space;
+                mCurrentLineIndex = -progress / space;
 
-                if (mCurrentLine > mLines) mCurrentLine = mLines;
-                else if (mCurrentLine < mStartLine) mCurrentLine = mStartLine;
+                if (mCurrentLineIndex > mLines) mCurrentLineIndex = mLines;
+                else if (mCurrentLineIndex < 0) mCurrentLineIndex = 0;
 
-                int expectY = space * -mCurrentLine + startY;
+                int expectY = space * -mCurrentLineIndex + startY;
                 if (adjustPosition && scrollY != expectY) {
                     //scrollTo(0, expectY);
                     mOverScroller.startScroll(0, getScrollY(), 0, expectY - scrollY, 0);
+                    ViewCompat.postInvalidateOnAnimation(this);
                 }
             }
             break;
@@ -447,30 +457,30 @@ public class HeightView extends View {
                 int startX = -((getWidth() >> 1) - getPaddingLeft());
                 int scrollX = getScrollX();
                 int progress = startX - scrollX;
-                mCurrentLine = -progress / space;
-                if (mCurrentLine > mLines) mCurrentLine = mLines;
-                else if (mCurrentLine < mStartLine) mCurrentLine = mStartLine;
+                mCurrentLineIndex = -progress / space;
+                if (mCurrentLineIndex > mLines) mCurrentLineIndex = mLines;
+                else if (mCurrentLineIndex < 0) mCurrentLineIndex = 0;
 
-                int expectX = space * mCurrentLine + startX;
+                int expectX = space * mCurrentLineIndex + startX;
 
                 if (adjustPosition && scrollX != expectX) {
                     //scrollTo(0, expectY);
                     mOverScroller.startScroll(getScrollX(), 0, expectX - scrollX, 0, 0);
+                    ViewCompat.postInvalidateOnAnimation(this);
                 }
             }
             break;
         }
-        ViewCompat.postInvalidateOnAnimation(this);
-        if (previous != mCurrentLine) onValueChanged();
+        if (previous != mCurrentLineIndex) onValueChanged();
     }
 
     /**
      * 当值可能发生变化后执行
      */
     public void onValueChanged() {
-        if (mCurrentLine >= mStartLine && mCurrentLine <= mLines) {
-            int index = mCurrentLine - mStartLine;
-            int value = ((mStartLine + (index / mSetupValue)) * mSetupValue) + index % mSetupValue;
+        if (mCurrentLineIndex >= 0 && mCurrentLineIndex <= mLines) {
+            int index = mCurrentLineIndex;
+            int value = mStartLineValue + (index * mSetupValue);
             if (mOnItemChangedListener != null) mOnItemChangedListener.onItemChanged(index, value);
         }
     }
@@ -500,9 +510,9 @@ public class HeightView extends View {
      * 重置线组
      */
     private void resetLinesArr() {
-        if (mLinesArr.length < (mLines - mStartLine + 1) * 4) {
+        if (mLinesArr.length < (mLines + 1) * 4) {
             //需要重新创建数组
-            mLinesArr = new float[(mLines - mStartLine + 1) * 4];
+            mLinesArr = new float[(mLines + 1) * 4];
         } else {
             Arrays.fill(mLinesArr, 0);
         }
@@ -533,6 +543,7 @@ public class HeightView extends View {
         // bottom start position
         int bottom = getHeight() - getPaddingBottom();
         int left = getPaddingLeft();
+
         float maxTextWidth = mTextPaint.measureText(String.valueOf(mLines / mOutSideLine * mSetupValue));
 
         int shakeCenter = (getHeight() >> 1) + getScrollY();
@@ -548,29 +559,34 @@ public class HeightView extends View {
 
         resetLinesArr();
 
-        for (int i = mStartLine, j = mStartLine, k = 0; i <= mLines; i++, k++) {
+        for (int i = 0; i <= mLines; i++) {
+            int value = mStartLineValue + (i * mSetupValue);
             float lineLength;
             switch (i % mOutSideLine) {
-                case ZERO: {
-                    float currentTextWidth = mTextPaint.measureText(String.valueOf(i));
-                    canvas.drawText(String.valueOf(j++ * mSetupValue), left + (maxTextWidth - currentTextWidth) / 2, bottom - i * space, mTextPaint);
+                case ZERO:
+                    String text = String.valueOf(value);
+                    float currentTextWidth = mTextPaint.measureText(text);
+                    canvas.drawText(text, left + (maxTextWidth - currentTextWidth) / 2, bottom - i * space, mTextPaint);
                     lineLength = mLongLineLength;
-                }
-                break;
+                    break;
                 default:
                     lineLength = mShortLineLength;
                     break;
             }
-            mLinesArr[k * 4] = left + maxTextWidth;
-            mLinesArr[k * 4 + 1] = bottom - i * space;
-            mLinesArr[k * 4 + 2] = left + maxTextWidth + lineLength;
-            mLinesArr[k * 4 + 3] = bottom - i * space;
+            mLinesArr[i * 4] = left + maxTextWidth;
+            mLinesArr[i * 4 + 1] = bottom - i * space;
+            mLinesArr[i * 4 + 2] = left + maxTextWidth + lineLength;
+            mLinesArr[i * 4 + 3] = bottom - i * space;
         }
 
         //绘制线
         canvas.drawLines(mLinesArr, mPaint);
         //绘制高亮线
-        canvas.drawLine(left + maxTextWidth, bottom - mCurrentLine * space, left + maxTextWidth + (mCurrentLine % mOutSideLine == 0 ? mLongLineLength : mShortLineLength), bottom - mCurrentLine * space, mHighlightPaint);
+        canvas.drawLine(left + maxTextWidth,
+                bottom - mCurrentLineIndex * space,
+                left + maxTextWidth + (((mCurrentLineIndex) % mOutSideLine == 0) ? mLongLineLength : mShortLineLength),
+                bottom - mCurrentLineIndex * space,
+                mHighlightPaint);
     }
 
     /**
@@ -584,6 +600,8 @@ public class HeightView extends View {
         // bottom position
         int bottom = getHeight() - getPaddingBottom();
         int left = getPaddingLeft();
+
+        float maxTextWidth = mTextPaint.measureText(String.valueOf(mLines / mOutSideLine * mSetupValue));
 
         //中心
         int shakeCenter = (getWidth() >> 1) + getScrollX();
@@ -602,35 +620,40 @@ public class HeightView extends View {
         resetLinesArr();
 
         //生成线组
-        for (int i = mStartLine, j = mStartLine, k = 0; i <= mLines; i++, k++) {
+
+        for (int i = 0; i <= mLines; i++) {
+            int value = mStartLineValue + (i * mSetupValue);
             float lineLength;
             switch (i % mOutSideLine) {
-                case ZERO: {
-                    canvas.drawText(String.valueOf(j++ * mSetupValue), left + i * space, bottom, mTextPaint);
+                case ZERO:
+                    String text = String.valueOf(value);
+                    canvas.drawText(text, left + i * space, bottom, mTextPaint);
                     lineLength = mLongLineLength;
-                }
-                break;
+                    break;
                 default:
                     lineLength = mShortLineLength;
                     break;
             }
+
             /*startX*/
-            mLinesArr[k * 4] = left + i * space;
+            mLinesArr[i * 4] = left + i * space;
             /*startY*/
-            mLinesArr[k * 4 + 1] = bottom - mTextPaint.getTextSize();
+            mLinesArr[i * 4 + 1] = bottom - mTextPaint.getTextSize();
             /*stopX*/
-            mLinesArr[k * 4 + 2] = left + i * space;
+            mLinesArr[i * 4 + 2] = left + i * space;
             /*stopY*/
-            mLinesArr[k * 4 + 3] = bottom - (mTextPaint.getTextSize() + lineLength);
+            mLinesArr[i * 4 + 3] = bottom - (mTextPaint.getTextSize() + lineLength);
         }
 
         //绘制线组
         canvas.drawLines(mLinesArr, mPaint);
 
-        //绘制当前选中的线条
-        canvas.drawLine(left + mCurrentLine * space, (bottom - mTextPaint.getTextSize()), left + mCurrentLine * space,
-                (bottom - mTextPaint.getTextSize()) - (mCurrentLine % mOutSideLine == 0 ? mLongLineLength : mShortLineLength), mHighlightPaint);
-
+//        //绘制当前选中的线条
+        canvas.drawLine(left + mCurrentLineIndex * space,
+                (bottom - mTextPaint.getTextSize()),
+                left + mCurrentLineIndex * space,
+                (bottom - mTextPaint.getTextSize()) - (mCurrentLineIndex % mOutSideLine == 0 ? mLongLineLength : mShortLineLength),
+                mHighlightPaint);
     }
 
 
@@ -667,12 +690,12 @@ public class HeightView extends View {
         invalidate();
     }
 
-    public int getCurrentLine() {
-        return mCurrentLine;
+    public int getCurrentLineIndex() {
+        return mCurrentLineIndex;
     }
 
-    public void setCurrentLine(int currentLine) {
-        int distance = currentLine * space;
+    public void setCurrentLineIndex(int currentLineIndex) {
+        int distance = currentLineIndex * space;
         if (mOverScroller != null && !mOverScroller.isFinished()) mOverScroller.abortAnimation();
         switch (mOrientation) {
             case HORIZONTAL:
@@ -697,7 +720,6 @@ public class HeightView extends View {
         requestLayout();
     }
 
-
     public float getShortLineLength() {
         return mShortLineLength;
     }
@@ -715,7 +737,6 @@ public class HeightView extends View {
         this.mLongLineLength = mLongLineLength;
         invalidate();
     }
-
 
     public int getHighLightColor() {
         return mHighLightColor;
@@ -778,12 +799,12 @@ public class HeightView extends View {
     }
 
 
-    public int getStartLine() {
-        return mStartLine;
+    public int getStartLineValue() {
+        return mStartLineValue;
     }
 
-    public void setStartLine(int startLine) {
-        this.mStartLine = startLine;
+    public void setStartLineValue(int startLineValue) {
+        this.mStartLineValue = startLineValue;
         requestLayout();
     }
 

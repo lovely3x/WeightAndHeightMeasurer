@@ -18,7 +18,7 @@
         <attr name="ratio" format="float" />
         <attr name="markerSpace" format="dimension" />
         <attr name="lines" format="integer"/>
-        <attr name="startLine" format="integer"/>
+        <attr name="startLineValue" format="integer"/>
         <attr name="markerSize" format="dimension"/>
 
     </declare-styleable>
